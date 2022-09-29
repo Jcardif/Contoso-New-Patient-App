@@ -10,7 +10,6 @@ param name string
 param databaseName string = 'patientDb'
 param containerName string = 'patientContainer'
 
-param swaSku string = 'Standard'
 param tags object
 
 // Cosmosdb
@@ -25,16 +24,13 @@ module cosmosdb 'cosmosdb.bicep' = {
   }
 }
 
-// Functions
-module functions 'functions.bicep' = {
-  name: '${name}--functions'
+// Storage
+module storage 'storage.bicep' = {
+  name: '${name}--storage'
   params: {
     location: location
-    appInsightsLocation: location
-    tags: union(tags, {
-        'azd-env-name': 'api'
-      })
-    appName: 'api-${name}'
+    storageAccountName: 'storage${name}'
+    tags: tags
   }
 }
 
@@ -43,12 +39,23 @@ module staticWebApp 'swa.bicep' = {
   name: '${name}--swa'
   params: {
     location: 'westus2'
-    sku: swaSku
     tags: union(tags, {
         'azd-service-name': 'web'
       })
-    name: 'swa-${name}'
+    buildProperties: {
+      skipGithubActionWorkflowGeneration: true
+    }
+    staticSiteName: 'swa-${name}'
+    appSettings: {
+      NEW_PATIENT_STORAGE: storage.outputs.CONNECTION_STRING
+      AzureWebJobsStorage: storage.outputs.CONNECTION_STRING
+      COSMOS_DB: cosmosdb.outputs.CONNECTION_STRING
+      FORM_RECOGNIZER_API_KEY: ''
+      FORM_RECOGNIZER_ENDPOINT: ''
+      FORM_RECOGNIZER_MODEL_ID: ''
+      FUNCTIONS_WORKER_RUNTIME: 'dotnet'
+    }
   }
 }
 
-output WEB_URI string = staticWebApp.outputs.SWA_URI
+output WEB_URI string = staticWebApp.outputs.uri
